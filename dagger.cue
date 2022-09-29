@@ -1,36 +1,36 @@
 package main
 
 import (
-    "dagger.io/dagger"
+	"dagger.io/dagger"
 	"dagger.io/dagger/core"
 	"universe.dagger.io/aws"
-    "universe.dagger.io/docker"
+	"universe.dagger.io/docker"
 )
 
 #ImageBuild: {
-    app: dagger.#FS
+	app: dagger.#FS
 
-    _pull: docker.#Pull & {
-        source: "ruby:3.1.2-alpine"
-    }
+	_pull: docker.#Pull & {
+		source: "ruby:3.1.2-alpine"
+	}
 
-    _copy: docker.#Copy & {
-        input:    _pull.output
-        contents: app
-        dest:     "/app"
-    }
+	_copy: docker.#Copy & {
+		input: _pull.output
+		contents: app
+		dest: "/app"
+	}
 
-    _run: docker.#Run & {
-        input: _copy.output
-    }
+	_run: docker.#Run & {
+		input: _copy.output
+	}
 
-    _set: docker.#Set & {
-        input: _run.output
-        config: cmd: ["ruby", "/app/json_parse.rb"]
-    }
+	_set: docker.#Set & {
+		input: _run.output
+		config: cmd: ["ruby", "/app/json_parse.rb"]
+	}
 
-    // Resulting container image
-    image: _set.output
+	// Resulting container image
+	image: _set.output
 }
 
 dagger.#Plan & {
@@ -39,21 +39,21 @@ dagger.#Plan & {
 			"./src/instance_lists.json": write: contents:	actions.prepare.export.files["/instance_lists.json"]
 			"./src": read: contents:						dagger.#FS
 		}
-        network: "unix:///var/run/docker.sock": connect: dagger.#Socket
-        env: {
-            AWS_ACCESS_KEY_ID:     dagger.#Secret
-            AWS_SECRET_ACCESS_KEY: dagger.#Secret
-        }
-    }
+		network: "unix:///var/run/docker.sock": connect: dagger.#Socket
+		env: {
+			AWS_ACCESS_KEY_ID:	 dagger.#Secret
+			AWS_SECRET_ACCESS_KEY: dagger.#Secret
+		}
+	}
 
-    actions: {
+	actions: {
 		// get the name of an instance with a specific tag
 		prepare: aws.#Container & {
 			always:	true
 			layer:	string | *"web"
 
 			credentials: aws.#Credentials & {
-				accessKeyId:     client.env.AWS_ACCESS_KEY_ID
+				accessKeyId:	 client.env.AWS_ACCESS_KEY_ID
 				secretAccessKey: client.env.AWS_SECRET_ACCESS_KEY
 			}
 			command: {
@@ -67,18 +67,18 @@ dagger.#Plan & {
 		}
 
 		// build an ruby image
-        build: #ImageBuild & {
-            app: client.filesystem."./src".read.contents
-        }
+		build: #ImageBuild & {
+			app: client.filesystem."./src".read.contents
+		}
 
 		// push image to local registry
 		// TODO: change to ECR from local
-        push: docker.#Push & {
-            image: build.image
-            dest:  "localhost:5042/disp_instance_list"
-        }
+		push: docker.#Push & {
+			image: build.image
+			dest:  "localhost:5042/disp_instance_list"
+		}
 
 		// pull & exec container
 		// TODO: development
-    }
+	}
 }
